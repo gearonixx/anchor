@@ -111,7 +111,7 @@ impl Candle {
         no_reply_limit: NoReplyLimit,
     ) -> Option<Self> {
         let is_conversation_going =
-            events.date.is_some_and(|last| now.timestamp() - last < QUIET_AFTER_THE_PEER_WROTE.num_seconds());
+            events.last_message.is_some_and(|last| now.timestamp() - last < QUIET_AFTER_THE_PEER_WROTE.num_seconds());
         let is_ignored = no_reply_limit.is_reached(events);
 
         if is_conversation_going || is_ignored { return None; }
@@ -139,7 +139,7 @@ impl Candle {
     }
 
     fn what_blocked_it(&self, events: &EventsState, no_reply_limit: NoReplyLimit) -> Option<CandleSkipReason> {
-        let peer_wrote = events.date.and_then(|written| DateTime::from_timestamp(written, 0));
+        let peer_wrote = events.last_message.and_then(|written| DateTime::from_timestamp(written, 0));
         let last_chance = self.slot_ends;
 
         match peer_wrote {
@@ -175,7 +175,7 @@ impl Candle {
     }
 
     fn over_the_limit_since_the_peer_wrote(&self, events: &EventsState) -> Option<CandleSkipReason> {
-        let peer_wrote = events.date.unwrap_or(i64::MIN);
+        let peer_wrote = events.last_message.unwrap_or(i64::MIN);
         let slot = self.time.timestamp();
 
         let unanswered = events

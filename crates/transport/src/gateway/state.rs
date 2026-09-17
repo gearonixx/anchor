@@ -49,7 +49,9 @@ impl UserState {
         let message_id = message.message_id;
         let sent_at = message.sent_at;
 
-        let previous_message = self.load_events().date.and_then(|ts| DateTime::from_timestamp(ts, 0));
+        // None
+        let previous_message = self.load_events().last_message.and_then(|ts| DateTime::from_timestamp(ts, 0));
+        // true - so
         let is_wake = self.get_two_utc_layers(sent_at).is_some_and(|layers| {
             WakeUpDetector::is_first_activity_today(self.user_id, &layers, previous_message, sent_at)
         });
@@ -74,7 +76,7 @@ impl UserState {
             if is_wake {
                 e.woke_up = Some(sent_at.timestamp());
                 e.got_up = None;
-                e.last_nudge = None;
+                e.last_reminder = None;
             }
         })?;
 
@@ -91,8 +93,8 @@ impl UserState {
         Ok(())
     }
 
-    pub(crate) fn record_wake_nudge(&self, now: DateTime<Utc>) -> Result<()> {
-        self.events_store.update_json(|e| e.last_nudge = Some(now.timestamp()))?;
+    pub(crate) fn record_wake_reminder(&self, now: DateTime<Utc>) -> Result<()> {
+        self.events_store.update_json(|e| e.last_reminder = Some(now.timestamp()))?;
         Ok(())
     }
 

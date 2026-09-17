@@ -137,7 +137,7 @@ fn fired_times_older_than_two_days_are_forgotten() {
 #[test]
 fn the_agent_does_not_start_a_conversation_right_after_the_peer_wrote() {
     let candle = plan()[3];
-    let events = EventsState { date: Some((candle.time - QUIET_AFTER_THE_PEER_WROTE / 2).timestamp()), ..EventsState::default() };
+    let events = EventsState { last_message: Some((candle.time - QUIET_AFTER_THE_PEER_WROTE / 2).timestamp()), ..EventsState::default() };
 
     assert_eq!(due(&events, candle.time), None);
 }
@@ -180,7 +180,7 @@ fn a_candle_the_peer_talked_over_says_when_the_peer_wrote() {
     let candle = plan()[3];
     let peer_wrote = candle.time - QUIET_AFTER_THE_PEER_WROTE / 2;
     let too_late = candle.slot_ends;
-    let events = EventsState { date: Some(peer_wrote.timestamp()), ..EventsState::default() };
+    let events = EventsState { last_message: Some(peer_wrote.timestamp()), ..EventsState::default() };
 
     assert_eq!(
         candle.status(&events, too_late, NoReplyLimit::On),
@@ -224,7 +224,7 @@ fn messages_the_peer_already_answered_do_not_count_as_ignored() {
         .map(|hours| (candle.time - Duration::hours(hours)).timestamp())
         .collect();
     let events = EventsState {
-        date: Some((candle.time - Duration::minutes(30)).timestamp()),
+        last_message: Some((candle.time - Duration::minutes(30)).timestamp()),
         fired_candle_times,
         ..EventsState::default()
     };
@@ -240,7 +240,7 @@ fn a_candle_the_peer_answered_only_later_is_still_read_from_the_agent_silence() 
 
     let limit = NoReplyLimit::LOWEST;
     let events = EventsState {
-        date: Some(peer_wrote.timestamp()),
+        last_message: Some(peer_wrote.timestamp()),
         fired_candle_times: fired_minutes_before(&candle, limit),
         ..EventsState::default()
     };
@@ -261,7 +261,7 @@ fn a_candle_the_agent_went_on_writing_after_loses_its_reason_to_the_reply() {
     fired_candle_times.push((candle.time + Duration::minutes(30)).timestamp());
 
     let events = EventsState {
-        date: Some(peer_wrote.timestamp()),
+        last_message: Some(peer_wrote.timestamp()),
         fired_candle_times,
         ..EventsState::default()
     };

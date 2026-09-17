@@ -22,7 +22,7 @@ fn update_reads_back_what_it_wrote_and_leaves_state_json_alone() {
     let store = EventsStore::new(&paths);
     store
         .update_json(|e| {
-            e.date = Some(1_789_083_952);
+            e.last_message = Some(1_789_083_952);
             e.events_no_reply = 2;
             e.resolved_events.insert("day_start".into(), "2026-09-11".into());
             e.skipped_events.insert(
@@ -33,7 +33,7 @@ fn update_reads_back_what_it_wrote_and_leaves_state_json_alone() {
         .unwrap();
 
     let events = store.load_json();
-    assert_eq!(events.date, Some(1_789_083_952));
+    assert_eq!(events.last_message, Some(1_789_083_952));
     assert_eq!(events.events_no_reply, 2);
     assert_eq!(events.resolved_events["day_start"], "2026-09-11");
     assert_eq!(events.skipped_events["day_end"].reason, "ignored_too_many_times");

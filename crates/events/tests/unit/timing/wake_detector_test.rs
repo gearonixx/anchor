@@ -32,6 +32,16 @@ fn first_activity_is_the_first_message_after_day_start() {
 }
 
 #[test]
+fn a_message_after_the_wake_window_is_not_a_waking_up() {
+    let morning = day_start_on("2026-09-14".parse().unwrap());
+    let layers = utc_plus_three();
+
+    let edge = morning + WAKE_TIME_WINDOW_DURATION;
+    assert!(WakeUpDetector::is_first_activity_today(PEER, &layers, None, edge));
+    assert!(!WakeUpDetector::is_first_activity_today(PEER, &layers, None, edge + Duration::minutes(1)));
+}
+
+#[test]
 fn get_up_reply_matches_only_the_exact_word() {
     assert!(WakeUpDetector::is_get_up_reply("up"));
     assert!(WakeUpDetector::is_get_up_reply("  Up  "));
@@ -40,30 +50,30 @@ fn get_up_reply_matches_only_the_exact_word() {
 }
 
 #[test]
-fn no_nudge_before_the_first_activity() {
-    assert!(!WakeUpDetector::should_nudge(&EventsState::default(), at(1_000_000)));
+fn no_reminder_before_the_first_activity() {
+    assert!(!WakeUpDetector::should_remind(&EventsState::default(), at(1_000_000)));
 }
 
 #[test]
-fn nudges_once_the_interval_passed_since_waking() {
+fn reminds_once_the_interval_passed_since_waking() {
     let woke = 1_000_000;
     let events = EventsState { woke_up: Some(woke), ..EventsState::default() };
 
-    assert!(!WakeUpDetector::should_nudge(&events, at(woke + 19 * 60)));
-    assert!(WakeUpDetector::should_nudge(&events, at(woke + 20 * 60)));
+    assert!(!WakeUpDetector::should_remind(&events, at(woke + 19 * 60)));
+    assert!(WakeUpDetector::should_remind(&events, at(woke + 20 * 60)));
 }
 
 #[test]
-fn spaces_repeated_nudges_by_the_interval() {
+fn spaces_repeated_reminders_by_the_interval() {
     let last = 1_000_000;
-    let events = EventsState { woke_up: Some(1), last_nudge: Some(last), ..EventsState::default() };
+    let events = EventsState { woke_up: Some(1), last_reminder: Some(last), ..EventsState::default() };
 
-    assert!(!WakeUpDetector::should_nudge(&events, at(last + 19 * 60)));
-    assert!(WakeUpDetector::should_nudge(&events, at(last + 20 * 60)));
+    assert!(!WakeUpDetector::should_remind(&events, at(last + 19 * 60)));
+    assert!(WakeUpDetector::should_remind(&events, at(last + 20 * 60)));
 }
 
 #[test]
 fn stops_nudging_after_the_peer_confirmed_getting_up() {
     let events = EventsState { woke_up: Some(1), got_up: Some(2), ..EventsState::default() };
-    assert!(!WakeUpDetector::should_nudge(&events, at(1_000_000)));
+    assert!(!WakeUpDetector::should_remind(&events, at(1_000_000)));
 }

@@ -5,7 +5,7 @@ use super::*;
 const SOME_MESSAGE_TIME: i64 = 1_700_000_000;
 
 fn events_after_the_peer_wrote(timestamp: i64) -> EventsState {
-    EventsState { date: Some(timestamp), ..EventsState::default() }
+    EventsState { last_message: Some(timestamp), ..EventsState::default() }
 }
 
 fn limits_over_a_thousand_peer_messages() -> BTreeSet<u32> {

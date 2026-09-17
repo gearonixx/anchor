@@ -17,7 +17,7 @@ use crate::helpers::is_real_user;
 
 const TICK: Duration = Duration::from_secs(60);
 
-const GET_UP_NUDGE: &str = "so, are you up?";
+const GET_UP_REMINDER: &str = "so, are you up?";
 
 pub fn spawn(api: ClientApi, peers: Arc<[i64]>, forced_probabilities: bool, no_reply_limit: NoReplyLimit) -> JoinHandle<()> {
     tokio::spawn(EventLoop::new(api, peers, forced_probabilities, no_reply_limit).run())
@@ -146,23 +146,23 @@ impl EventLoop {
             self.record_and_send_candle(peer_id, &state, candle).await?;
         }
 
-        if WakeUpDetector::should_nudge(&events, now) && !state.is_asleep(now) {
-            self.send_wake_nudge(peer_id, &state, now).await?;
+        if WakeUpDetector::should_remind(&events, now) && !state.is_asleep(now) {
+            self.send_wake_reminder(peer_id, &state, now).await?;
         }
 
         Ok(())
     }
 
-    async fn send_wake_nudge(&self, peer_id: i64, state: &UserState, now: DateTime<Utc>) -> Result<()> {
-        state.record_wake_nudge(now)?;
+    async fn send_wake_reminder(&self, peer_id: i64, state: &UserState, now: DateTime<Utc>) -> Result<()> {
+        state.record_wake_reminder(now)?;
 
         let sent_id = self
             .api
-            .send_with_typing(peer_id, OutgoingMessage::Text(GET_UP_NUDGE.to_string()), TYPING_DURATION)
+            .send_with_typing(peer_id, OutgoingMessage::Text(GET_UP_REMINDER.to_string()), TYPING_DURATION)
             .await?;
         state.record_outgoing(sent_id)?;
 
-        log::info!("anchor.wake.nudge peer={peer_id}");
+        log::info!("anchor.wake.reminder peer={peer_id}");
 
         Ok(())
     }

@@ -15,7 +15,7 @@ impl NoReplyLimit {
     pub const LOWEST: u32 = *MAX_EVENTS_NO_REPLY.start();
 
     pub fn since_the_peer_wrote(events: &EventsState) -> u32 {
-        let peer_wrote = events.date.unwrap_or_default() as u64;
+        let peer_wrote = events.last_message.unwrap_or_default() as u64;
         let mut random = gen_deterministic_seed(&[peer_wrote, NO_REPLY_LIMIT_SEED_PURPOSE]);
 
         let (lowest, highest) = (*MAX_EVENTS_NO_REPLY.start(), *MAX_EVENTS_NO_REPLY.end());

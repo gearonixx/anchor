@@ -1,13 +1,18 @@
-use chrono::{DateTime, Utc};
+use std::ops::RangeInclusive;
+
+use chrono::{DateTime, Duration, Utc};
 use state::EventsState;
 
 use crate::clock::peer_utc_layers::PeerUtcLayers;
 use crate::events::Event;
-use crate::lever::NUDGE_EVERY;
+use crate::lever::{REMIND_EVERY, WAKE_TIME_WINDOW};
 use crate::timing::event_time::compute_event_time;
 use crate::utils::duration::parse_str_to_minutes;
 
-const NUDGE_EVERY_SECONDS: i64 = parse_str_to_minutes(NUDGE_EVERY) as i64 * 60;
+const REMIND_EVERY_SECONDS: i64 = parse_str_to_minutes(REMIND_EVERY) as i64 * 60;
+// see this constant at lever.rs
+// we should actually make this thing randomized
+const WAKE_TIME_WINDOW_DURATION: Duration = Duration::minutes(parse_str_to_minutes(WAKE_TIME_WINDOW) as i64);
 
 pub struct WakeUpDetector;
 
@@ -21,21 +26,30 @@ impl WakeUpDetector {
         let local_date = layers.from_utc_to_local(now);
         let day_start = compute_event_time(peer_id, local_date, Event::DayStart, layers);
 
-        let is_after_day_start = now >= day_start;
+        let is_within_wake_window = Self::get_wake_window(day_start).contains(&now);
+        // if previous < day_start, that means it was the day before
         let had_no_activity_today = previous_message.is_none_or(|previous| previous < day_start);
 
-        is_after_day_start && had_no_activity_today
+        is_within_wake_window && had_no_activity_today
     }
+
+    fn get_wake_window(day_start: DateTime<Utc>) -> RangeInclusive<DateTime<Utc>> {
+        let wake_window_start = day_start;
+        let wake_window_end = day_start + WAKE_TIME_WINDOW_DURATION;
+
+        wake_window_start..=wake_window_end
+    }
+
 
     pub fn is_get_up_reply(text: &str) -> bool {
         text.trim().to_lowercase() == "up"
     }
 
-    pub fn should_nudge(events: &EventsState, now: DateTime<Utc>) -> bool {
+    pub fn should_remind(events: &EventsState, now: DateTime<Utc>) -> bool {
         if events.got_up.is_some() { return false; }
 
-        let since = events.last_nudge.or(events.woke_up);
-        since.is_some_and(|since| now.timestamp() - since >= NUDGE_EVERY_SECONDS)
+        let since = events.last_reminder.or(events.woke_up);
+        since.is_some_and(|since| now.timestamp() - since >= REMIND_EVERY_SECONDS)
     }
 }
 

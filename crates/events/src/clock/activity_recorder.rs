@@ -11,7 +11,7 @@ impl ActivityRecorder {
     // 2. resets events_no_reply = 0
     // 3. updates the per-UTC-hour activity stats
     pub fn record_peer_message(events: &mut EventsState, at: DateTime<Utc>) {
-        events.date = Some(at.timestamp());
+        events.last_message = Some(at.timestamp());
         events.events_no_reply = 0;
 
         let activity = events.activity.get_or_insert_with(|| Activity {

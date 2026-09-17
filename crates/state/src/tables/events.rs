@@ -11,13 +11,13 @@ use crate::utils::time_units::seconds_to_days;
 #[serde(default)]
 pub struct EventsState {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub date: Option<i64>,
+    pub last_message: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub woke_up: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub got_up: Option<i64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub last_nudge: Option<i64>,
+    #[serde(alias = "last_nudge", skip_serializing_if = "Option::is_none")]
+    pub last_reminder: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub activity: Option<Activity>,
     #[serde(alias = "unanswered_in_a_row", alias = "events_without_reply")]

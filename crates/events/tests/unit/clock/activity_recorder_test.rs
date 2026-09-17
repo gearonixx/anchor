@@ -14,7 +14,7 @@ fn observing_a_message_records_when_and_clears_the_ignored_counter() {
 
     ActivityRecorder::record_peer_message(&mut events, at);
 
-    assert_eq!(events.date, Some(at.timestamp()));
+    assert_eq!(events.last_message, Some(at.timestamp()));
     assert_eq!(events.events_no_reply, 0);
 
     let activity = events.activity.as_ref().unwrap();

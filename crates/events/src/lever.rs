@@ -37,4 +37,8 @@ pub(crate) const MAX_EVENT_LATENESS: &str = "9m";
 // how long the agent stays available after the day end event
 pub(crate) const FALLS_ASLEEP_AFTER_DAY_END: &str = "14m";
 
-pub(crate) const NUDGE_EVERY: &str = "20m";
+// the maximum amount of time window after day_start during which the user's
+// first message can STILL be considered a wake-up
+pub(crate) const WAKE_TIME_WINDOW: &str = "1h24m";
+
+pub(crate) const REMIND_EVERY: &str = "20m";
