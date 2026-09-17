@@ -16,7 +16,7 @@ pub struct EventsState {
     pub woke_up: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub got_up: Option<i64>,
-    #[serde(alias = "last_nudge", skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub last_reminder: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub activity: Option<Activity>,

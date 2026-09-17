@@ -42,6 +42,26 @@ fn a_message_after_the_wake_window_is_not_a_waking_up() {
 }
 
 #[test]
+fn the_wake_window_opens_at_day_start_and_lasts_the_lever() {
+    let morning = day_start_on("2026-09-14".parse().unwrap());
+    let window = WakeUpDetector::get_wake_window(morning);
+
+    assert_eq!((*window.start(), *window.end()), (morning, morning + WAKE_TIME_WINDOW_DURATION));
+}
+
+#[test]
+fn a_message_in_the_small_hours_is_not_a_waking_up_but_the_morning_one_is() {
+    let date = "2026-09-14".parse().unwrap();
+    let layers = utc_plus_three();
+
+    let night = layers.apply_layer_1(date, 0.0) + Duration::hours(2);
+    assert!(!WakeUpDetector::is_first_activity_today(PEER, &layers, None, night));
+
+    let morning = day_start_on(date) + Duration::minutes(8);
+    assert!(WakeUpDetector::is_first_activity_today(PEER, &layers, Some(night), morning));
+}
+
+#[test]
 fn get_up_reply_matches_only_the_exact_word() {
     assert!(WakeUpDetector::is_get_up_reply("up"));
     assert!(WakeUpDetector::is_get_up_reply("  Up  "));

@@ -43,6 +43,14 @@ fn the_agent_sleeps_until_day_start() {
 }
 
 #[test]
+fn the_agent_is_asleep_in_the_small_hours() {
+    let morning_after = night().succ_opt().unwrap();
+    let small_hours = utc_plus_three().apply_layer_1(morning_after, 0.0) + Duration::hours(2);
+
+    assert!(is_asleep(small_hours));
+}
+
+#[test]
 fn the_agent_is_awake_through_the_day() {
     let wakes_up = day_start_after(night());
     let next_day_end = day_end_of(night().succ_opt().unwrap());
