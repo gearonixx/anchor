@@ -17,8 +17,6 @@ use crate::helpers::is_real_user;
 
 const TICK: Duration = Duration::from_secs(60);
 
-const GET_UP_REMINDER: &str = "so, are you up?";
-
 pub fn spawn(api: ClientApi, peers: Arc<[i64]>, forced_probabilities: bool, no_reply_limit: NoReplyLimit) -> JoinHandle<()> {
     tokio::spawn(EventLoop::new(api, peers, forced_probabilities, no_reply_limit).run())
 }
@@ -158,7 +156,7 @@ impl EventLoop {
 
         let sent_id = self
             .api
-            .send_with_typing(peer_id, OutgoingMessage::Text(GET_UP_REMINDER.to_string()), TYPING_DURATION)
+            .send_with_typing(peer_id, OutgoingMessage::Text(WakeUpDetector::GET_UP_REMIND.to_string()), TYPING_DURATION)
             .await?;
         state.record_outgoing(sent_id)?;
 

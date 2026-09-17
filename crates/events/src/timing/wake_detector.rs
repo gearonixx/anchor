@@ -17,6 +17,11 @@ const WAKE_TIME_WINDOW_DURATION: Duration = Duration::minutes(parse_str_to_minut
 pub struct WakeUpDetector;
 
 impl WakeUpDetector {
+    // temporary
+    pub const GET_UP_START: &'static str = "get up";
+    pub const GET_UP_REMIND: &'static str = "so, are you up?";
+    pub const GET_UP_OK: &'static str = "well done!";
+
     pub fn is_first_activity_today(
         peer_id: i64,
         layers: &PeerUtcLayers,

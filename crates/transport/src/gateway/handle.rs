@@ -8,11 +8,8 @@ use crate::client::{ClientApi, IncomingMessage, MessageKind, OutgoingMessage};
 use crate::consts::{TYPING_DURATION, data_dir};
 use crate::gateway::MessageGate;
 use crate::gateway::setup::ConfigurationInput;
-use crate::gateway::state::UserState;
+use crate::gateway::state::{RecordStatus, UserState};
 use crate::helpers::is_real_user;
-
-const WAKE_UP_PHRASE: &str = "get up";
-const GET_UP_PRAISE: &str = "well done";
 
 pub async fn handle_message(
     gate: &impl MessageGate,
@@ -57,7 +54,7 @@ pub async fn handle_message(
         }
     }
 
-    let is_wake = state.record_incoming(message)?;
+    let record_status = state.record_incoming(message)?;
 
     if message.is_too_late_to_answer(utc_now) {
         let (user_id, msg_id) = (message.user_id, message.message_id);
@@ -85,15 +82,16 @@ pub async fn handle_message(
         MessageKind::Other => gate.on_other(message).await,
     };
 
-    let reply = if is_wake {
-        Some(WAKE_UP_PHRASE.to_owned())
-    } else if matches!(&message.kind, MessageKind::Text(text) if WakeUpDetector::is_get_up_reply(text))
-        && state.is_awaiting_get_up()
-    {
-        state.confirm_got_up(utc_now)?;
-        Some(GET_UP_PRAISE.to_owned())
-    } else {
-        reply
+    let confirmed_get_up =
+        matches!(&message.kind, MessageKind::Text(text) if WakeUpDetector::is_get_up_reply(text));
+
+    let reply = match record_status {
+        RecordStatus::WokeUp => Some(WakeUpDetector::GET_UP_START.to_owned()),
+        RecordStatus::Normal if confirmed_get_up && state.is_awaiting_get_up() => {
+            state.confirm_got_up(utc_now)?;
+            Some(WakeUpDetector::GET_UP_OK.to_owned())
+        }
+        RecordStatus::Normal => reply,
     };
 
     let reply = match reply {

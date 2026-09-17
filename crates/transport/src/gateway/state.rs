@@ -9,6 +9,11 @@ use state::{
 use crate::client::{IncomingMessage, MessageKind};
 use crate::consts::data_dir;
 
+pub(crate) enum RecordStatus {
+    WokeUp,
+    Normal,
+}
+
 pub(crate) struct UserState {
     user_id: i64,
     state_store: StateStore,
@@ -44,7 +49,7 @@ impl UserState {
             .is_some_and(|layers| SleepWindow::is_agent_asleep(self.user_id, &layers, now))
     }
 
-    pub(crate) fn record_incoming(&self, message: &IncomingMessage) -> Result<bool> {
+    pub(crate) fn record_incoming(&self, message: &IncomingMessage) -> Result<RecordStatus> {
         let is_reaction = matches!(message.kind, MessageKind::Reaction { .. });
         let message_id = message.message_id;
         let sent_at = message.sent_at;
@@ -80,7 +85,14 @@ impl UserState {
             }
         })?;
 
-        Ok(is_wake)
+        // temporary
+        let status = if is_wake {
+            RecordStatus::WokeUp
+        } else {
+            RecordStatus::Normal
+        };
+
+        Ok(status)
     }
 
     pub(crate) fn is_awaiting_get_up(&self) -> bool {
