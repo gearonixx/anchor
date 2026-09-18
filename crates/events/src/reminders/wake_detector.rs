@@ -1,28 +1,21 @@
 use std::ops::RangeInclusive;
 
 use chrono::{DateTime, Duration, Utc};
-use state::EventsState;
 
 use crate::clock::peer_utc_layers::PeerUtcLayers;
 use crate::events::Event;
-use crate::lever::{REMIND_EVERY, WAKE_TIME_WINDOW};
+use crate::lever::WAKE_TIME_WINDOW;
 use crate::timing::event_time::compute_event_time;
 use crate::utils::duration::parse_str_to_minutes;
 
-const REMIND_EVERY_SECONDS: i64 = parse_str_to_minutes(REMIND_EVERY) as i64 * 60;
 // see this constant at lever.rs
 // we should actually make this thing randomized
 const WAKE_TIME_WINDOW_DURATION: Duration = Duration::minutes(parse_str_to_minutes(WAKE_TIME_WINDOW) as i64);
 
-pub struct WakeUpDetector;
+pub(crate) struct WakeUpDetector;
 
 impl WakeUpDetector {
-    // temporary
-    pub const GET_UP_START: &'static str = "get up";
-    pub const GET_UP_REMIND: &'static str = "so, are you up?";
-    pub const GET_UP_OK: &'static str = "well done!";
-
-    pub fn is_first_activity_today(
+    pub(crate) fn is_first_activity_today(
         peer_id: i64,
         layers: &PeerUtcLayers,
         previous_message: Option<DateTime<Utc>>,
@@ -49,20 +42,8 @@ impl WakeUpDetector {
 
         wake_window_start..=wake_window_end
     }
-
-
-    pub fn is_get_up_reply(text: &str) -> bool {
-        text.trim().to_lowercase() == "up"
-    }
-
-    pub fn should_remind(events: &EventsState, now: DateTime<Utc>) -> bool {
-        if events.got_up.is_some() { return false; }
-
-        let since = events.last_reminder.or(events.woke_up);
-        since.is_some_and(|since| now.timestamp() - since >= REMIND_EVERY_SECONDS)
-    }
 }
 
 #[cfg(test)]
-#[path = "../../tests/unit/timing/wake_detector_test.rs"]
+#[path = "../../tests/unit/reminders/wake_detector_test.rs"]
 mod tests;

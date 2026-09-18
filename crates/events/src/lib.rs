@@ -13,6 +13,9 @@ mod timing {
     pub(crate) mod event_time;
     pub(crate) mod sleep_window;
     pub(crate) mod time_window;
+}
+mod reminders {
+    pub(crate) mod reminder;
     pub(crate) mod wake_detector;
 }
 mod limits {
@@ -34,5 +37,5 @@ pub use event_recorder::EventRecorder;
 pub use event_forecast::{EventForecast, EventStatus};
 pub use limits::no_reply_limit::NoReplyLimit;
 pub use timing::sleep_window::SleepWindow;
-pub use timing::wake_detector::WakeUpDetector;
+pub use reminders::reminder::Reminder;
 pub use utils::random::gen_deterministic_seed;

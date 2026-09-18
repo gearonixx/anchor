@@ -1,6 +1,6 @@
 use anyhow::Result;
 use chrono::{DateTime, Utc};
-use events::{Event, LocalDate, PeerUtcLayers, SkipReason, SleepWindow, WakeUpDetector};
+use events::{Event, LocalDate, PeerUtcLayers, Reminder, SkipReason, SleepWindow};
 use scheduler::Candle;
 use state::{
     ConfigStore, EventsState, EventsStore, PeerConfig, Sender, AgentState, StateStore, UserDataPaths, PeerReaction,
@@ -10,7 +10,7 @@ use crate::client::{IncomingMessage, MessageKind};
 use crate::consts::data_dir;
 
 pub(crate) enum RecordStatus {
-    WokeUp,
+    Started(Reminder),
     Normal,
 }
 
@@ -46,7 +46,7 @@ impl UserState {
 
     pub(crate) fn is_asleep(&self, now: DateTime<Utc>) -> bool {
         self.get_two_utc_layers(now)
-            .is_some_and(|layers| SleepWindow::is_agent_asleep(self.user_id, &layers, now))
+            .is_some_and(|layers| SleepWindow::is_agent_asleep(self.user_id, &layers, &self.load_events(), now))
     }
 
     pub(crate) fn record_incoming(&self, message: &IncomingMessage) -> Result<RecordStatus> {
@@ -56,9 +56,10 @@ impl UserState {
 
         // None
         let previous_message = self.load_events().last_message.and_then(|ts| DateTime::from_timestamp(ts, 0));
-        // true - so
-        let is_wake = self.get_two_utc_layers(sent_at).is_some_and(|layers| {
-            WakeUpDetector::is_first_activity_today(self.user_id, &layers, previous_message, sent_at)
+        let started = self.get_two_utc_layers(sent_at).and_then(|layers| {
+            Reminder::ALL.into_iter().find(|reminder| {
+                reminder.is_started_by_message(self.user_id, &layers, previous_message, sent_at)
+            })
         });
 
         self.state_store.update_json(|s: &mut AgentState| {
@@ -78,35 +79,37 @@ impl UserState {
 
         self.events_store.update_json(|e| {
             events::ActivityRecorder::record_peer_message(e, sent_at);
-            if is_wake {
-                e.woke_up = Some(sent_at.timestamp());
-                e.got_up = None;
-                e.last_reminder = None;
+            if let Some(reminder) = started {
+                reminder.start_cycle(e, sent_at);
             }
         })?;
 
-        // temporary
-        let status = if is_wake {
-            RecordStatus::WokeUp
-        } else {
-            RecordStatus::Normal
-        };
-
-        Ok(status)
+        Ok(started.map_or(RecordStatus::Normal, RecordStatus::Started))
     }
 
-    pub(crate) fn is_awaiting_get_up(&self) -> bool {
+    pub(crate) fn awaiting_confirmation(&self, text: &str) -> Option<Reminder> {
         let events = self.load_events();
-        events.woke_up.is_some() && events.got_up.is_none()
+
+        Reminder::ALL.into_iter().find(|reminder| {
+            let is_its_confirmation_word = reminder.is_confirmation(text);
+            let is_awaiting_confirmation = reminder.is_awaiting_confirmation(&events);
+
+            is_its_confirmation_word && is_awaiting_confirmation
+        })
     }
 
-    pub(crate) fn confirm_got_up(&self, now: DateTime<Utc>) -> Result<()> {
-        self.events_store.update_json(|e| e.got_up = Some(now.timestamp()))?;
+    pub(crate) fn start_reminder(&self, reminder: Reminder, now: DateTime<Utc>) -> Result<()> {
+        self.events_store.update_json(|e| reminder.start_cycle(e, now))?;
         Ok(())
     }
 
-    pub(crate) fn record_wake_reminder(&self, now: DateTime<Utc>) -> Result<()> {
-        self.events_store.update_json(|e| e.last_reminder = Some(now.timestamp()))?;
+    pub(crate) fn confirm_reminder(&self, reminder: Reminder, now: DateTime<Utc>) -> Result<()> {
+        self.events_store.update_json(|e| reminder.confirm_cycle(e, now))?;
+        Ok(())
+    }
+
+    pub(crate) fn record_sent_reminder(&self, reminder: Reminder, now: DateTime<Utc>) -> Result<()> {
+        self.events_store.update_json(|e| reminder.record_sent(e, now))?;
         Ok(())
     }
 

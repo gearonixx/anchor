@@ -34,11 +34,15 @@ pub(crate) const L2_SHIFT_SHARE: f64 = 0.5; // → take half of the remainder
 // if this window is missed, the greeting is not sent that day at all; nothing resends it later.
 pub(crate) const MAX_EVENT_LATENESS: &str = "9m";
 
-// how long the agent stays available after the day end event
-pub(crate) const FALLS_ASLEEP_AFTER_DAY_END: &str = "14m";
-
 // the maximum amount of time window after day_start during which the user's
 // first message can STILL be considered a wake-up
-pub(crate) const WAKE_TIME_WINDOW: &str = "1h24m";
 
-pub(crate) const REMIND_EVERY: &str = "20m";
+// REMINDERS
+
+// wake reminder
+pub(crate) const WAKE_TIME_WINDOW: &str = "1h24m";
+pub(crate) const REMIND_TO_GET_UP_EVERY: &str = "20m";
+
+// sleep reminder
+pub(crate) const GO_TO_SLEEP_WINDOW: &str = "1h18m";
+pub(crate) const REMIND_TO_SLEEP_EVERY: &str = "11m";

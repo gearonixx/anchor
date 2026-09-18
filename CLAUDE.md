@@ -90,9 +90,17 @@ crate opts in with `[lints] workspace = true`.
   reaching a clean state is not a reason to commit. Leave the work in the
   working tree and say it is ready. The same goes for `git push`, `git
   reset`, amending, and creating branches or tags.
-- Subject: one concise, plain-language line summarizing the change, ~50-60
-  characters, matching the style of recent `git log` subjects. This is the
-  entire message.
+- Subject: Conventional Commits — `type: summary`. Lowercase type, then
+  `: `, then one concise, plain-language summary, imperative mood, no
+  trailing period, ~50-60 characters including the prefix. No scope in
+  parentheses, no `!`, no emoji. This is the entire message.
+- Types: `feat` new behavior, `fix` behavior that was wrong, `refactor`
+  no behavior change (renames, moves, extractions), `test` tests only,
+  `docs` prose only, `chore` deps, config, tooling. Choose by what the
+  change does to behavior, not by the size of the diff. If a change spans
+  two purposes, take the type of the dominant one or split the commit.
+- Matching subjects from this repo's log: `refactor: name the wake-up
+  result`, `fix: wake window construction bug`.
 - Never write a body or description. The subject line is the whole commit
   message: no second line, no bullet list of changes, no explanation of what
   or why. If the subject cannot carry it, shorten the subject or split the

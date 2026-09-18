@@ -1,7 +1,6 @@
 use anyhow::Result;
 use chrono::Utc;
 use config::{Configuration, ConfigurationStep};
-use events::WakeUpDetector;
 use reply_timing::ReplyTiming;
 
 use crate::client::{ClientApi, IncomingMessage, MessageKind, OutgoingMessage};
@@ -82,16 +81,23 @@ pub async fn handle_message(
         MessageKind::Other => gate.on_other(message).await,
     };
 
-    let confirmed_get_up =
-        matches!(&message.kind, MessageKind::Text(text) if WakeUpDetector::is_get_up_reply(text));
+    let confirmed = match &message.kind {
+        MessageKind::Text(text) => state.awaiting_confirmation(text),
+        _ => None,
+    };
 
     let reply = match record_status {
-        RecordStatus::WokeUp => Some(WakeUpDetector::GET_UP_START.to_owned()),
-        RecordStatus::Normal if confirmed_get_up && state.is_awaiting_get_up() => {
-            state.confirm_got_up(utc_now)?;
-            Some(WakeUpDetector::GET_UP_OK.to_owned())
-        }
-        RecordStatus::Normal => reply,
+        RecordStatus::Started(reminder) => Some(reminder.prompt().to_owned()),
+        RecordStatus::Normal => match confirmed {
+            Some(reminder) => {
+                state.confirm_reminder(reminder, utc_now)?;
+
+                log::info!("anchor.reminder.confirmed peer={} reminder={}", message.user_id, reminder.name());
+
+                Some(reminder.ok().to_owned())
+            }
+            None => reply,
+        },
     };
 
     let reply = match reply {

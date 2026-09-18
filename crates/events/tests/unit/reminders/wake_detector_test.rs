@@ -9,10 +9,6 @@ fn utc_plus_three() -> PeerUtcLayers {
     PeerUtcLayers::with_offset_hours(3.0).unwrap()
 }
 
-fn at(timestamp: i64) -> DateTime<Utc> {
-    DateTime::from_timestamp(timestamp, 0).unwrap()
-}
-
 fn day_start_on(date: LocalDate) -> DateTime<Utc> {
     compute_event_time(PEER, date, Event::DayStart, &utc_plus_three())
 }
@@ -59,41 +55,4 @@ fn a_message_in_the_small_hours_is_not_a_waking_up_but_the_morning_one_is() {
 
     let morning = day_start_on(date) + Duration::minutes(8);
     assert!(WakeUpDetector::is_first_activity_today(PEER, &layers, Some(night), morning));
-}
-
-#[test]
-fn get_up_reply_matches_only_the_exact_word() {
-    assert!(WakeUpDetector::is_get_up_reply("up"));
-    assert!(WakeUpDetector::is_get_up_reply("  Up  "));
-    assert!(!WakeUpDetector::is_get_up_reply("not up"));
-    assert!(!WakeUpDetector::is_get_up_reply("getting up"));
-}
-
-#[test]
-fn no_reminder_before_the_first_activity() {
-    assert!(!WakeUpDetector::should_remind(&EventsState::default(), at(1_000_000)));
-}
-
-#[test]
-fn reminds_once_the_interval_passed_since_waking() {
-    let woke = 1_000_000;
-    let events = EventsState { woke_up: Some(woke), ..EventsState::default() };
-
-    assert!(!WakeUpDetector::should_remind(&events, at(woke + 19 * 60)));
-    assert!(WakeUpDetector::should_remind(&events, at(woke + 20 * 60)));
-}
-
-#[test]
-fn spaces_repeated_reminders_by_the_interval() {
-    let last = 1_000_000;
-    let events = EventsState { woke_up: Some(1), last_reminder: Some(last), ..EventsState::default() };
-
-    assert!(!WakeUpDetector::should_remind(&events, at(last + 19 * 60)));
-    assert!(WakeUpDetector::should_remind(&events, at(last + 20 * 60)));
-}
-
-#[test]
-fn stops_nudging_after_the_peer_confirmed_getting_up() {
-    let events = EventsState { woke_up: Some(1), got_up: Some(2), ..EventsState::default() };
-    assert!(!WakeUpDetector::should_remind(&events, at(1_000_000)));
 }

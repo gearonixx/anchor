@@ -4,7 +4,7 @@ use std::time::Duration;
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use config::Configuration;
-use events::{Decision, LocalDate, Event, NoReplyLimit, PeerUtcLayers, SkipReason, WakeUpDetector};
+use events::{Decision, LocalDate, Event, NoReplyLimit, PeerUtcLayers, Reminder, SkipReason};
 use scheduler::Candle;
 use state::{ConfigStore, UserDataPaths};
 use tokio::task::JoinHandle;
@@ -144,23 +144,41 @@ impl EventLoop {
             self.record_and_send_candle(peer_id, &state, candle).await?;
         }
 
-        if WakeUpDetector::should_remind(&events, now) && !state.is_asleep(now) {
-            self.send_wake_reminder(peer_id, &state, now).await?;
+        for reminder in Reminder::ALL {
+            if reminder.should_remind(&events, now) && !state.is_asleep(now) {
+                self.send_reminder(peer_id, &state, reminder, now).await?;
+            }
         }
 
         Ok(())
     }
 
-    async fn send_wake_reminder(&self, peer_id: i64, state: &UserState, now: DateTime<Utc>) -> Result<()> {
-        state.record_wake_reminder(now)?;
+    async fn send_reminder(
+        &self,
+        peer_id: i64,
+        state: &UserState,
+        reminder: Reminder,
+        now: DateTime<Utc>,
+    ) -> Result<()> {
+        state.record_sent_reminder(reminder, now)?;
 
-        let sent_id = self
-            .api
-            .send_with_typing(peer_id, OutgoingMessage::Text(WakeUpDetector::GET_UP_REMIND.to_string()), TYPING_DURATION)
-            .await?;
+        let text = reminder.reminding_text().to_string();
+        let sent_id = self.api.send_with_typing(peer_id, OutgoingMessage::Text(text), TYPING_DURATION).await?;
         state.record_outgoing(sent_id)?;
 
-        log::info!("anchor.wake.reminder peer={peer_id}");
+        log::info!("anchor.reminder.sent peer={peer_id} reminder={}", reminder.name());
+
+        Ok(())
+    }
+
+    async fn start_reminder(&self, peer_id: i64, state: &UserState, reminder: Reminder) -> Result<()> {
+        state.start_reminder(reminder, Utc::now())?;
+
+        let text = reminder.prompt().to_string();
+        let sent_id = self.api.send_with_typing(peer_id, OutgoingMessage::Text(text), TYPING_DURATION).await?;
+        state.record_outgoing(sent_id)?;
+
+        log::info!("anchor.reminder.started peer={peer_id} reminder={}", reminder.name());
 
         Ok(())
     }
@@ -195,6 +213,10 @@ impl EventLoop {
 
         let event = kind.name();
         log::info!("anchor.events.sent peer={peer_id} event={event} date={date} text={text:?}");
+
+        if kind == Event::DayEnd {
+            self.start_reminder(peer_id, state, Reminder::GoToSleep).await?;
+        }
 
         Ok(())
     }

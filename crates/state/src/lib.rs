@@ -11,5 +11,5 @@ pub mod utils {
 
 pub use paths::UserDataPaths;
 pub use tables::config::{PeerConfig, ConfigStore, TimezoneConfig};
-pub use tables::events::{Activity, EventsState, EventsStore, SkippedEvent};
+pub use tables::events::{Activity, EventsState, EventsStore, ReminderState, SkippedEvent};
 pub use tables::state::{AgentState, Sender, StateStore, PeerReaction};

@@ -12,12 +12,8 @@ use crate::utils::time_units::seconds_to_days;
 pub struct EventsState {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_message: Option<i64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub woke_up: Option<i64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub got_up: Option<i64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub last_reminder: Option<i64>,
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    pub reminders: BTreeMap<String, ReminderState>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub activity: Option<Activity>,
     #[serde(alias = "unanswered_in_a_row", alias = "events_without_reply")]
@@ -28,6 +24,27 @@ pub struct EventsState {
     pub skipped_events: BTreeMap<String, SkippedEvent>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub fired_candle_times: Vec<i64>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ReminderState {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub started: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub confirmed: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_reminder: Option<i64>,
+}
+
+impl ReminderState {
+    pub fn started_at(timestamp: i64) -> Self {
+        Self { started: Some(timestamp), ..Self::default() }
+    }
+
+    pub fn is_awaiting_confirmation(&self) -> bool {
+        self.started.is_some() && self.confirmed.is_none()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

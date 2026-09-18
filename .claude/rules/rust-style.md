@@ -113,6 +113,35 @@ let configured = Configuration::for_user(data_dir(), peer_id).is_finished();
 let is_configured = Configuration::for_user(data_dir(), peer_id).is_finished();
 ```
 
+## Name the parts of a condition
+
+A condition made of more than one part is never inlined. Bind every part to its
+own `is_` / `has_` / `had_` local, leave a blank line, then combine the locals.
+The combined line reads as a sentence, and the reviewer never decodes what a
+call means in this particular context.
+
+```text
+// BAD:
+if reminder.is_confirmation(text) && reminder.is_awaiting_confirmation(&events) {
+
+.find(|reminder| reminder.is_confirmation(text) && reminder.is_awaiting_confirmation(&events))
+
+let is_wake = now >= day_start && previous_message.is_none_or(|previous| previous < day_start);
+
+// GOOD:
+let is_its_confirmation_word = reminder.is_confirmation(text);
+let is_awaiting_confirmation = reminder.is_awaiting_confirmation(&events);
+
+is_its_confirmation_word && is_awaiting_confirmation
+```
+
+This holds inside a closure too: a closure body is code like any other, and a
+multi-part condition there gets the same treatment.
+
+Two exceptions. A one-line guard stays one line — it is a condition, not a
+branch. And when the second part is expensive, naming it forces work that `&&`
+would have skipped; write two guards instead of one named pair.
+
 ## Never write README files
 
 Do not create or rewrite `README.md`, and do not invent `ARCHITECTURE.md`,
