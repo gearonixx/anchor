@@ -8,6 +8,7 @@ use transport::client::{AnchorClient, AnchorClientOptions};
 use transport::config::Config;
 use transport::event_loop;
 use transport::gateway::{MessageGateImpl, handle_message};
+use transport::google_callback;
 use transport::logger;
 
 #[tokio::main]
@@ -31,16 +32,28 @@ async fn main() -> Result<()> {
 
     let gates = Arc::new(MessageGateImpl);
     let peers: Arc<[i64]> = config.peers.into();
+    let google = Arc::new(config.google.clone());
 
-    event_loop::spawn(client.api().clone(), Arc::clone(&peers), config.forced_probabilities, config.no_reply_limit);
+    if let Some(app) = config.google.clone() {
+        google_callback::spawn(client.api().clone(), app, config.google_callback_port, Arc::clone(&peers));
+    }
+
+    event_loop::spawn(
+        client.api().clone(),
+        Arc::clone(&peers),
+        config.forced_probabilities,
+        config.no_reply_limit,
+        config.google.clone(),
+    );
 
     client
         .run(move |api, message| {
             let gates = Arc::clone(&gates);
             let peers = Arc::clone(&peers);
+            let google = Arc::clone(&google);
 
             async move {
-                if let Err(err) = handle_message(&*gates, &api, &peers, &message).await {
+                if let Err(err) = handle_message(&*gates, &api, &peers, google.as_ref().as_ref(), &message).await {
                     log::error!("anchor.gateway.failed: {err:#}");
                 }
             }

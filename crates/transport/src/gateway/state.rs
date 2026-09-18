@@ -1,24 +1,22 @@
 use anyhow::Result;
 use chrono::{DateTime, Utc};
+use calendar::CalendarReminders;
 use events::{Event, LocalDate, PeerUtcLayers, Reminder, SkipReason, SleepWindow};
 use scheduler::Candle;
 use state::{
-    ConfigStore, EventsState, EventsStore, PeerConfig, Sender, AgentState, StateStore, UserDataPaths, PeerReaction,
+    AgentState, CalendarEvent, CalendarState, CalendarStore, ConfigStore, EventsState, EventsStore, GoogleTokens,
+    PeerConfig, PeerReaction, Sender, StateStore, UserDataPaths,
 };
 
 use crate::client::{IncomingMessage, MessageKind};
 use crate::consts::data_dir;
-
-pub(crate) enum RecordStatus {
-    Started(Reminder),
-    Normal,
-}
 
 pub(crate) struct UserState {
     user_id: i64,
     state_store: StateStore,
     events_store: EventsStore,
     config_store: ConfigStore,
+    calendar_store: CalendarStore,
 }
 
 impl UserState {
@@ -29,6 +27,7 @@ impl UserState {
             state_store: StateStore::new(&paths),
             events_store: EventsStore::new(&paths),
             config_store: ConfigStore::new(&paths),
+            calendar_store: CalendarStore::new(&paths),
         }
     }
 
@@ -40,6 +39,36 @@ impl UserState {
         self.config_store.load_json()
     }
 
+    pub(crate) fn load_calendar(&self) -> CalendarState {
+        self.calendar_store.load_json()
+    }
+
+    pub(crate) fn connect_calendar(&self, tokens: GoogleTokens, now: DateTime<Utc>) -> Result<()> {
+        self.calendar_store.update_json(|c| {
+            c.tokens = Some(tokens);
+            c.connected_at = Some(now.timestamp());
+            c.refreshed_at = None;
+        })?;
+        Ok(())
+    }
+
+    pub(crate) fn store_access_token(&self, tokens: GoogleTokens) -> Result<()> {
+        self.calendar_store.update_json(|c| c.tokens = Some(tokens))?;
+        Ok(())
+    }
+
+    pub(crate) fn store_upcoming_events(&self, upcoming: Vec<CalendarEvent>, now: DateTime<Utc>) -> Result<()> {
+        self.calendar_store
+            .update_json(|c| CalendarReminders::store_upcoming(c, upcoming, now))?;
+        Ok(())
+    }
+
+    pub(crate) fn record_sent_heads_up(&self, event_id: &str, now: DateTime<Utc>) -> Result<()> {
+        self.calendar_store
+            .update_json(|c| CalendarReminders::record_sent_heads_up(c, event_id, now))?;
+        Ok(())
+    }
+
     pub(crate) fn get_two_utc_layers(&self, now: DateTime<Utc>) -> Option<PeerUtcLayers> {
         PeerUtcLayers::resolve_two_utc_layers(&self.load_config(), &self.load_events(), now)
     }
@@ -49,18 +78,10 @@ impl UserState {
             .is_some_and(|layers| SleepWindow::is_agent_asleep(self.user_id, &layers, &self.load_events(), now))
     }
 
-    pub(crate) fn record_incoming(&self, message: &IncomingMessage) -> Result<RecordStatus> {
+    pub(crate) fn record_incoming(&self, message: &IncomingMessage) -> Result<()> {
         let is_reaction = matches!(message.kind, MessageKind::Reaction { .. });
         let message_id = message.message_id;
         let sent_at = message.sent_at;
-
-        // None
-        let previous_message = self.load_events().last_message.and_then(|ts| DateTime::from_timestamp(ts, 0));
-        let started = self.get_two_utc_layers(sent_at).and_then(|layers| {
-            Reminder::ALL.into_iter().find(|reminder| {
-                reminder.is_started_by_message(self.user_id, &layers, previous_message, sent_at)
-            })
-        });
 
         self.state_store.update_json(|s: &mut AgentState| {
             if !is_reaction {
@@ -77,14 +98,10 @@ impl UserState {
             s.peer_message_count = Some(s.peer_message_count.unwrap_or(1) + 1);
         })?;
 
-        self.events_store.update_json(|e| {
-            events::ActivityRecorder::record_peer_message(e, sent_at);
-            if let Some(reminder) = started {
-                reminder.start_cycle(e, sent_at);
-            }
-        })?;
+        self.events_store
+            .update_json(|e| events::ActivityRecorder::record_peer_message(e, sent_at))?;
 
-        Ok(started.map_or(RecordStatus::Normal, RecordStatus::Started))
+        Ok(())
     }
 
     pub(crate) fn awaiting_confirmation(&self, text: &str) -> Option<Reminder> {

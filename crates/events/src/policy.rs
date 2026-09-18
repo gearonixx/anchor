@@ -10,7 +10,7 @@ use crate::events::Event;
 use crate::lever::MAX_EVENT_LATENESS;
 use crate::limits::no_reply_limit::NoReplyLimit;
 use crate::clock::peer_utc_layers::PeerUtcLayers;
-use crate::utils::duration::parse_str_to_minutes;
+use state::utils::time_units::parse_str_to_minutes;
 
 pub(crate) const MAX_EVENT_LATENESS_DURATION: chrono::Duration =
     chrono::Duration::minutes(parse_str_to_minutes(MAX_EVENT_LATENESS) as i64);

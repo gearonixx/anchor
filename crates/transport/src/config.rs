@@ -3,9 +3,12 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use anyhow::{Context, Result};
+use calendar::GoogleApp;
 use events::NoReplyLimit;
 
 use crate::consts::{MTPROTO_SESSION_PATH, ROOT_DIR};
+
+const DEFAULT_GOOGLE_CALLBACK_PORT: u16 = 9099;
 
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -17,6 +20,8 @@ pub struct Config {
     pub peers: Vec<i64>,
     pub forced_probabilities: bool,
     pub no_reply_limit: NoReplyLimit,
+    pub google: Option<GoogleApp>,
+    pub google_callback_port: u16,
 }
 
 impl Config {
@@ -42,6 +47,10 @@ impl Config {
             false => NoReplyLimit::On,
         };
 
+        let google = google_app();
+        let google_callback_port = parse(&var("GOOGLE_CALLBACK_PORT").unwrap_or_default())
+            .unwrap_or(DEFAULT_GOOGLE_CALLBACK_PORT);
+
         Ok(Self {
             api_id,
             api_hash,
@@ -50,8 +59,18 @@ impl Config {
             peers,
             forced_probabilities,
             no_reply_limit,
+            google,
+            google_callback_port,
         })
     }
+}
+
+fn google_app() -> Option<GoogleApp> {
+    Some(GoogleApp {
+        client_id: var("GOOGLE_CLIENT_ID")?,
+        client_secret: var("GOOGLE_CLIENT_SECRET")?,
+        redirect_uri: var("GOOGLE_REDIRECT_URI")?,
+    })
 }
 
 fn var(key: &str) -> Option<String> {

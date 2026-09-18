@@ -1,4 +1,5 @@
 use anyhow::Result;
+use calendar::{GoogleApp, GoogleAuth};
 use chrono::Utc;
 use config::{Configuration, ConfigurationStep};
 use reply_timing::ReplyTiming;
@@ -7,13 +8,17 @@ use crate::client::{ClientApi, IncomingMessage, MessageKind, OutgoingMessage};
 use crate::consts::{TYPING_DURATION, data_dir};
 use crate::gateway::MessageGate;
 use crate::gateway::setup::ConfigurationInput;
-use crate::gateway::state::{RecordStatus, UserState};
+use crate::gateway::state::UserState;
 use crate::helpers::is_real_user;
+
+const CONNECT_CALENDAR_COMMAND: &str = "calendar";
+const CALENDAR_IS_OFF: &str = "calendar is not set up";
 
 pub async fn handle_message(
     gate: &impl MessageGate,
     api: &ClientApi,
     peers: &[i64],
+    google: Option<&GoogleApp>,
     message: &IncomingMessage,
 ) -> Result<()> {
     if !is_real_user(message.user_id, peers) {
@@ -53,7 +58,7 @@ pub async fn handle_message(
         }
     }
 
-    let record_status = state.record_incoming(message)?;
+    state.record_incoming(message)?;
 
     if message.is_too_late_to_answer(utc_now) {
         let (user_id, msg_id) = (message.user_id, message.message_id);
@@ -66,6 +71,15 @@ pub async fn handle_message(
         let (user_id, msg_id) = (message.user_id, message.message_id);
         log::info!("anchor.message.asleep user_id={user_id} msg_id={msg_id}");
         return Ok(());
+    }
+
+    let is_connect_calendar = match &message.kind {
+        MessageKind::Text(text) => text.trim().eq_ignore_ascii_case(CONNECT_CALENDAR_COMMAND),
+        _ => false,
+    };
+
+    if is_connect_calendar {
+        return answer_with_consent_link(api, &state, google, message.user_id).await;
     }
 
     let reply = match &message.kind {
@@ -86,18 +100,15 @@ pub async fn handle_message(
         _ => None,
     };
 
-    let reply = match record_status {
-        RecordStatus::Started(reminder) => Some(reminder.prompt().to_owned()),
-        RecordStatus::Normal => match confirmed {
-            Some(reminder) => {
-                state.confirm_reminder(reminder, utc_now)?;
+    let reply = match confirmed {
+        Some(reminder) => {
+            state.confirm_reminder(reminder, utc_now)?;
 
-                log::info!("anchor.reminder.confirmed peer={} reminder={}", message.user_id, reminder.name());
+            log::info!("anchor.reminder.confirmed peer={} reminder={}", message.user_id, reminder.name());
 
-                Some(reminder.ok().to_owned())
-            }
-            None => reply,
-        },
+            Some(reminder.ok().to_owned())
+        }
+        None => reply,
     };
 
     let reply = match reply {
@@ -117,6 +128,27 @@ pub async fn handle_message(
     state.record_outgoing(sent_id)?;
 
     log::info!("anchor.message.sent to={} text={reply:?}", message.user_id);
+
+    Ok(())
+}
+
+async fn answer_with_consent_link(
+    api: &ClientApi,
+    state: &UserState,
+    google: Option<&GoogleApp>,
+    peer_id: i64,
+) -> Result<()> {
+    let link = match google {
+        Some(app) => GoogleAuth::build_consent_url(app, peer_id)?,
+        None => CALENDAR_IS_OFF.to_owned(),
+    };
+
+    let sent_id = api
+        .send_with_typing(peer_id, OutgoingMessage::Text(link), TYPING_DURATION)
+        .await?;
+    state.record_outgoing(sent_id)?;
+
+    log::info!("anchor.calendar.consent_link_sent peer={peer_id}");
 
     Ok(())
 }

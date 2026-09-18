@@ -4,6 +4,7 @@ use std::time::Duration;
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use config::Configuration;
+use calendar::{CalendarReminders, GoogleApp, GoogleAuth, GoogleCalendar};
 use events::{Decision, LocalDate, Event, NoReplyLimit, PeerUtcLayers, Reminder, SkipReason};
 use scheduler::Candle;
 use state::{ConfigStore, UserDataPaths};
@@ -17,8 +18,14 @@ use crate::helpers::is_real_user;
 
 const TICK: Duration = Duration::from_secs(60);
 
-pub fn spawn(api: ClientApi, peers: Arc<[i64]>, forced_probabilities: bool, no_reply_limit: NoReplyLimit) -> JoinHandle<()> {
-    tokio::spawn(EventLoop::new(api, peers, forced_probabilities, no_reply_limit).run())
+pub fn spawn(
+    api: ClientApi,
+    peers: Arc<[i64]>,
+    forced_probabilities: bool,
+    no_reply_limit: NoReplyLimit,
+    google: Option<GoogleApp>,
+) -> JoinHandle<()> {
+    tokio::spawn(EventLoop::new(api, peers, forced_probabilities, no_reply_limit, google).run())
 }
 
 struct EventLoop {
@@ -26,6 +33,7 @@ struct EventLoop {
     peers: Arc<[i64]>,
     forced_probabilities: bool,
     no_reply_limit: NoReplyLimit,
+    google: Option<GoogleApp>,
 }
 
 // background timer for proactive messages.
@@ -37,12 +45,19 @@ struct EventLoop {
 // work out their local time
 
 impl EventLoop {
-    fn new(api: ClientApi, peers: Arc<[i64]>, forced_probabilities: bool, no_reply_limit: NoReplyLimit) -> Self {
+    fn new(
+        api: ClientApi,
+        peers: Arc<[i64]>,
+        forced_probabilities: bool,
+        no_reply_limit: NoReplyLimit,
+        google: Option<GoogleApp>,
+    ) -> Self {
         Self {
             api,
             peers,
             forced_probabilities,
             no_reply_limit,
+            google,
         }
     }
 
@@ -144,11 +159,75 @@ impl EventLoop {
             self.record_and_send_candle(peer_id, &state, candle).await?;
         }
 
+        self.keep_calendar_fresh(peer_id, &state, now)
+            .await
+            .unwrap_or_else(|err| log::warn!("anchor.calendar.refresh_failed peer={peer_id}: {err:#}"));
+
+        self.send_calendar_heads_up(peer_id, &state, now).await?;
+
         for reminder in Reminder::ALL {
+            if reminder.should_start(peer_id, &events, &clock, now) {
+                self.start_reminder(peer_id, &state, reminder, now).await?;
+            }
+
             if reminder.should_remind(&events, now) && !state.is_asleep(now) {
                 self.send_reminder(peer_id, &state, reminder, now).await?;
             }
         }
+
+        Ok(())
+    }
+
+    async fn keep_calendar_fresh(&self, peer_id: i64, state: &UserState, now: DateTime<Utc>) -> Result<()> {
+        let app = match &self.google {
+            Some(app) => app,
+            None => return Ok(()),
+        };
+
+        let calendar = state.load_calendar();
+        if !CalendarReminders::should_refresh(&calendar, now) { return Ok(()); }
+
+        let tokens = match calendar.tokens {
+            Some(tokens) => tokens,
+            None => return Ok(()),
+        };
+
+        let tokens = match tokens.has_fresh_access(now.timestamp()) {
+            true => tokens,
+            false => {
+                let refreshed = GoogleAuth::refresh_access_token(app, &tokens, now).await?;
+                state.store_access_token(refreshed.clone())?;
+                refreshed
+            }
+        };
+
+        let upcoming = GoogleCalendar::fetch_upcoming(&tokens.access_token, now).await?;
+        let count = upcoming.len();
+
+        state.store_upcoming_events(upcoming, now)?;
+
+        log::info!("anchor.calendar.refreshed peer={peer_id} events={count}");
+
+        Ok(())
+    }
+
+    async fn send_calendar_heads_up(&self, peer_id: i64, state: &UserState, now: DateTime<Utc>) -> Result<()> {
+        let calendar = state.load_calendar();
+
+        let (event_id, text) = match CalendarReminders::due_now(&calendar, now) {
+            Some(event) => (event.id.clone(), CalendarReminders::heads_up_text(event, now)),
+            None => return Ok(()),
+        };
+
+        state.record_sent_heads_up(&event_id, now)?;
+
+        let sent_id = self
+            .api
+            .send_with_typing(peer_id, OutgoingMessage::Text(text.clone()), TYPING_DURATION)
+            .await?;
+        state.record_outgoing(sent_id)?;
+
+        log::info!("anchor.calendar.heads_up_sent peer={peer_id} event={event_id} text={text:?}");
 
         Ok(())
     }
@@ -171,8 +250,14 @@ impl EventLoop {
         Ok(())
     }
 
-    async fn start_reminder(&self, peer_id: i64, state: &UserState, reminder: Reminder) -> Result<()> {
-        state.start_reminder(reminder, Utc::now())?;
+    async fn start_reminder(
+        &self,
+        peer_id: i64,
+        state: &UserState,
+        reminder: Reminder,
+        now: DateTime<Utc>,
+    ) -> Result<()> {
+        state.start_reminder(reminder, now)?;
 
         let text = reminder.prompt().to_string();
         let sent_id = self.api.send_with_typing(peer_id, OutgoingMessage::Text(text), TYPING_DURATION).await?;
@@ -213,10 +298,6 @@ impl EventLoop {
 
         let event = kind.name();
         log::info!("anchor.events.sent peer={peer_id} event={event} date={date} text={text:?}");
-
-        if kind == Event::DayEnd {
-            self.start_reminder(peer_id, state, Reminder::GoToSleep).await?;
-        }
 
         Ok(())
     }

@@ -1,14 +1,18 @@
-use chrono::{DateTime, Utc};
+use std::ops::RangeInclusive;
+
+use chrono::{DateTime, Duration, Utc};
 use state::{EventsState, ReminderState};
 
 use crate::clock::peer_utc_layers::PeerUtcLayers;
-use crate::reminders::wake_detector::WakeUpDetector;
+use crate::events::Event;
+use crate::timing::event_time::compute_event_time;
 
-use crate::lever::{GO_TO_SLEEP_WINDOW, REMIND_TO_GET_UP_EVERY, REMIND_TO_SLEEP_EVERY};
-use crate::utils::duration::parse_str_to_minutes;
+use crate::lever::{GO_TO_SLEEP_WINDOW, REMIND_TO_GET_UP_EVERY, REMIND_TO_SLEEP_EVERY, WAKE_TIME_WINDOW};
+use state::utils::time_units::parse_str_to_minutes;
 
 const REMIND_TO_GET_UP_EVERY_SECONDS: i64 = parse_str_to_minutes(REMIND_TO_GET_UP_EVERY) as i64 * 60;
 const REMIND_TO_SLEEP_EVERY_SECONDS: i64 = parse_str_to_minutes(REMIND_TO_SLEEP_EVERY) as i64 * 60;
+const WAKE_TIME_WINDOW_SECONDS: i64 = parse_str_to_minutes(WAKE_TIME_WINDOW) as i64 * 60;
 const GO_TO_SLEEP_WINDOW_SECONDS: i64 = parse_str_to_minutes(GO_TO_SLEEP_WINDOW) as i64 * 60;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -58,19 +62,52 @@ impl Reminder {
         }
     }
 
-    pub fn is_started_by_message(
+    pub fn anchor_event(self) -> Event {
+        match self {
+            Self::WakeUp => Event::DayStart,
+            Self::GoToSleep => Event::DayEnd,
+        }
+    }
+
+    pub fn should_start(
+        self,
+        peer_id: i64,
+        events: &EventsState,
+        layers: &PeerUtcLayers,
+        now: DateTime<Utc>,
+    ) -> bool {
+        self.get_running_window(peer_id, layers, now)
+            .is_some_and(|window| !self.has_started_within(events, window))
+    }
+
+    fn get_running_window(
         self,
         peer_id: i64,
         layers: &PeerUtcLayers,
-        previous_message: Option<DateTime<Utc>>,
-        sent_at: DateTime<Utc>,
-    ) -> bool {
-        match self {
-            Self::WakeUp => {
-                WakeUpDetector::is_first_activity_today(peer_id, layers, previous_message, sent_at)
-            }
-            Self::GoToSleep => false,
-        }
+        now: DateTime<Utc>,
+    ) -> Option<RangeInclusive<DateTime<Utc>>> {
+        let today = layers.from_utc_to_local(now);
+        let yesterday = today.pred_opt().unwrap_or(today);
+
+        [yesterday, today]
+            .into_iter()
+            .map(|date| {
+                let opens = compute_event_time(peer_id, date, self.anchor_event(), layers);
+
+                opens..=opens + self.window_lasts()
+            })
+            .find(|window| window.contains(&now))
+    }
+
+    fn has_started_within(self, events: &EventsState, window: RangeInclusive<DateTime<Utc>>) -> bool {
+        self.cycle_of(events)
+            .and_then(|cycle| cycle.started)
+            .and_then(|started| DateTime::from_timestamp(started, 0))
+            .is_some_and(|started| window.contains(&started))
+    }
+
+    fn window_lasts(self) -> Duration {
+        Duration::seconds(self.window_seconds())
     }
 
     pub fn cycle_of(self, events: &EventsState) -> Option<&ReminderState> {
@@ -110,10 +147,9 @@ impl Reminder {
     }
 
     fn has_cycle_run_out(self, cycle: &ReminderState, now: DateTime<Utc>) -> bool {
-        match (self.cycle_lasts_seconds(), cycle.started) {
-            (Some(lasts), Some(started)) => now.timestamp() - started > lasts,
-            _ => false,
-        }
+        cycle
+            .started
+            .is_some_and(|started| now.timestamp() - started > self.window_seconds())
     }
 
     fn remind_every_seconds(self) -> i64 {
@@ -123,10 +159,10 @@ impl Reminder {
         }
     }
 
-    fn cycle_lasts_seconds(self) -> Option<i64> {
+    fn window_seconds(self) -> i64 {
         match self {
-            Self::WakeUp => None,
-            Self::GoToSleep => Some(GO_TO_SLEEP_WINDOW_SECONDS),
+            Self::WakeUp => WAKE_TIME_WINDOW_SECONDS,
+            Self::GoToSleep => GO_TO_SLEEP_WINDOW_SECONDS,
         }
     }
 }

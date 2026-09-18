@@ -48,6 +48,7 @@ Virtual workspace, edition 2024.
 | `crates/scheduler` | Candles: proactive messages spaced by a log-normal gap distribution. |
 | `crates/config` | Per-peer setup dialog (consent, timezone). |
 | `crates/forecast` | Offline forecast of planned events and candles as JSON. |
+| `crates/calendar` | Google Calendar: OAuth consent, token refresh, upcoming events, heads-up policy. |
 
 ## Terms
 

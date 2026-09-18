@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/reply-timing", "crates/state", "crates/events", "crates/config", "crates/scheduler", "crates/transport", "crates/forecast"]
+members = ["crates/calendar", "crates/reply-timing", "crates/state", "crates/events", "crates/config", "crates/scheduler", "crates/transport", "crates/forecast"]
 resolver = "3"
 
 [workspace.lints.rust]

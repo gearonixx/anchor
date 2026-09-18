@@ -10,7 +10,7 @@ use crate::lever::{
     L2_MAX_ACTIVITY_WHILE_QUIET, L2_NOISE_MINUTES, L2_SHIFT_SHARE,
 };
 use crate::utils::circular::longest_circular_run;
-use crate::utils::duration::parse_str_to_minutes;
+use state::utils::time_units::parse_str_to_minutes;
 
 const QUIET_MIDPOINT_LOCAL_HOUR: f64 = 5.0;
 const QUIET_TIE_SHARE: f64 = 0.01;

@@ -8,7 +8,7 @@ use crate::timing::event_time::compute_event_time;
 use crate::events::Event;
 use crate::lever::GO_TO_SLEEP_WINDOW;
 use crate::reminders::reminder::Reminder;
-use crate::utils::duration::parse_str_to_minutes;
+use state::utils::time_units::parse_str_to_minutes;
 
 const GO_TO_SLEEP_WINDOW_DURATION: Duration =
     Duration::minutes(parse_str_to_minutes(GO_TO_SLEEP_WINDOW) as i64);

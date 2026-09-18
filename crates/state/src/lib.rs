@@ -1,5 +1,6 @@
 pub mod paths;
 pub mod tables {
+    pub mod calendar;
     pub mod config;
     pub mod events;
     pub mod state;
@@ -10,6 +11,7 @@ pub mod utils {
 }
 
 pub use paths::UserDataPaths;
+pub use tables::calendar::{CalendarEvent, CalendarState, CalendarStore, GoogleTokens};
 pub use tables::config::{PeerConfig, ConfigStore, TimezoneConfig};
 pub use tables::events::{Activity, EventsState, EventsStore, ReminderState, SkippedEvent};
 pub use tables::state::{AgentState, Sender, StateStore, PeerReaction};

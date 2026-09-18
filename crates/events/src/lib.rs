@@ -16,14 +16,12 @@ mod timing {
 }
 mod reminders {
     pub(crate) mod reminder;
-    pub(crate) mod wake_detector;
 }
 mod limits {
     pub(crate) mod no_reply_limit;
 }
 mod utils {
     pub(crate) mod circular;
-    pub(crate) mod duration;
     pub(crate) mod random;
 }
 
